@@ -26,7 +26,7 @@ class CalibNet(nn.Module):
         self.bn1 = set_batch_normalization(self.channels[1])
         self.relu1 = set_relu(True)
 
-        self.conv2 = set_conv(self.channels[1], self.channels[2], kernel=1, strides=2)
+        self.conv2 = set_conv(self.channels[1], self.channels[2], kernel=1, strides=2, padding=0)
         self.bn2 = set_batch_normalization(self.channels[2])
         self.relu2 = set_relu(True)
 
@@ -34,13 +34,13 @@ class CalibNet(nn.Module):
         self.bn_rot = set_batch_normalization(self.channels[2])
         self.relu_rot = set_relu(True)
         self.dropout_rot = set_dropout(0.7)
-        self.fcl_rot = set_dense(3*6*96, 3)
+        self.fcl_rot = set_dense(2*5*96, 3)
 
         self.conv_tr = set_conv(self.channels[2], self.channels[2], kernel=1, strides=1, padding=0)
         self.bn_tr = set_batch_normalization(self.channels[2])
         self.relu_tr = set_relu(True)
         self.dropout_tr = set_dropout(0.7)
-        self.fcl_tr = set_dense(3*6*96, 3)
+        self.fcl_tr = set_dense(2*5*96, 3)
 
     def forward(self, x1, x2):
         x1 = self.resnet(x1)
