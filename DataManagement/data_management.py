@@ -1,12 +1,13 @@
 import numpy as np
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
+import torchvision.transforms as transforms
 import torch
 import cv2
 
 
 class CalibNetDataset(Dataset):
-    def __init__(self, path, training=True, transform=None):
+    def __init__(self, path, training=True):
         """
         Args:
             csv_file (string): csv 파일의 경로
@@ -15,7 +16,7 @@ class CalibNetDataset(Dataset):
         """
         self.dataset = np.loadtxt(path, dtype = str)
         self.training = training
-        self.transform = transform
+        self.transform = transforms.Compose([transforms.ToTensor()])
 
         self.data_num = len(self.dataset) * 0.8
 
@@ -69,7 +70,9 @@ class CalibNetDataset(Dataset):
 
         transformed = np.linalg.inv(self.transforms[idx].reshape(4, 4))     # transform의 역행렬
 
-        data = {'source_depth_map': source_map, 'target_depth_map': target_map, 'source_image': source_img, 'target_image':target_img, 'transform_matrix':transformed}
+        data = {'source_depth_map': self.transform(source_map), 'target_depth_map': self.transform(target_map),
+                'source_image': self.transform(source_img), 'target_image':self.transform(target_img),
+                'transform_matrix': transformed}
 
         return data
 

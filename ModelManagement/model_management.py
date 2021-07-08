@@ -1,1 +1,10 @@
-import numpy as np
+import torch
+
+
+def train():
+    pass
+
+
+def validate():
+    pass
+

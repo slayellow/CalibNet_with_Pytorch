@@ -1,6 +1,6 @@
 import torch.nn as nn
 import torch
-import pytorch_model_summary
+import torchinfo
 
 
 def set_conv(in_channel, out_channel, kernel=3, strides=1, padding=1):
@@ -39,8 +39,12 @@ def set_dense(in_channel, out_channel):
     return nn.Linear(in_channel, out_channel)
 
 
-def summary(model):
-    return pytorch_model_summary.summary(model, torch.zeros(1, 3, 224, 224), show_input=True)
+def set_concat(list, axis=1):
+    return torch.cat(list, axis=axis)
+
+
+def summary(model, input_size, dev):
+    return torchinfo.summary(model, input_size, device=dev)
 
 
 def set_dropout(rate=0.5):
@@ -72,8 +76,8 @@ def set_SGD(model, learning_rate, momentum=0.9, weight_decay=1e-4):
     return torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=momentum, weight_decay=weight_decay)
 
 
-def set_Adam(model, learning_rate, beta=0.9):
-    return torch.optim.Adam(model.parameters(), lr=learning_rate, betas=beta)
+def set_Adam(model, learning_rate):
+    return torch.optim.Adam(model.parameters(), lr=learning_rate)
 
 
 def set_Adagrad(model, learning_rate):
