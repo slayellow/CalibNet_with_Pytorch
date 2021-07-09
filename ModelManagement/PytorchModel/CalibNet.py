@@ -44,7 +44,7 @@ class CalibNet(nn.Module):
 
     def forward(self, x1, x2):
         x1 = self.resnet(x1)
-        x2 = self.depthnet(x2)
+        x2, max_pool = self.depthnet(x2)
 
         x = set_concat([x1, x2], axis=1)
 
@@ -76,7 +76,7 @@ class CalibNet(nn.Module):
 
         x = set_concat([tr, rot], axis=1)
 
-        return x
+        return x, max_pool
 
 
     def get_name(self):

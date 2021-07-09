@@ -121,8 +121,8 @@ class DepthNet(nn.Module):
         # self.fcl = set_dense(channels[3] * self.block.expansions, classes)
 
     def forward(self, x):
-        x = self.firstmaxpool(x)
-        x = self.conv0(x)
+        max_pool = self.firstmaxpool(x)
+        x = self.conv0(max_pool)
         x = self.bn0(x)
         x = self.relu0(x)
         x = self.maxpool0(x)
@@ -137,7 +137,7 @@ class DepthNet(nn.Module):
         # x = self.gap(x)
         # x = x.view(x.size(0), -1)
         # x = self.fcl(x)
-        return x
+        return x, max_pool
 
     def get_name(self):
         return self.model_name
