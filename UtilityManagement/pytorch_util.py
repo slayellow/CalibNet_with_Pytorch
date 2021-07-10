@@ -72,6 +72,10 @@ def loss_cross_entropy():
     return nn.CrossEntropyLoss()
 
 
+def loss_MSE():
+    return nn.MSELoss()
+
+
 def set_SGD(model, learning_rate, momentum=0.9, weight_decay=1e-4):
     return torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=momentum, weight_decay=weight_decay)
 

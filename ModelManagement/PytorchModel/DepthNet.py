@@ -1,4 +1,5 @@
 from UtilityManagement.pytorch_util import *
+import UtilityManagement.config as cf
 import math
 import os
 import warnings
@@ -105,7 +106,7 @@ class DepthNet(nn.Module):
         else:
             warnings.warn("클래스가 구성하는 Layer 갯수와 맞지 않습니다.")
 
-        self.firstmaxpool = set_max_pool(kernel=5, strides=1)
+        self.firstmaxpool = set_max_pool(kernel=5, strides=1, padding=2)
         self.conv0 = set_conv(in_channel, channels[0], kernel=7, strides=2, padding=3)
         self.bn0 = set_batch_normalization(channels[0])
         self.relu0 = set_relu(True)
@@ -177,7 +178,7 @@ class DepthNet(nn.Module):
         return nn.Sequential(*layers)
 
 def DepthNet18(layer_num, classes):
-    pretrained_path ="./Log/"
+    pretrained_path = cf.paths['resnet_pretrained_path']
     model = DepthNet(layer_num, classes)
 
     if os.path.isfile(os.path.join(pretrained_path, model.get_name()+'.pth')):
@@ -192,7 +193,7 @@ def DepthNet18(layer_num, classes):
 
 
 def DepthNet34(layer_num, classes):
-    pretrained_path ="./Log/"
+    pretrained_path = cf.paths['resnet_pretrained_path']
     model = DepthNet(layer_num, classes)
 
     if os.path.isfile(os.path.join(pretrained_path, model.get_name()+'.pth')):
@@ -207,7 +208,7 @@ def DepthNet34(layer_num, classes):
 
 
 def DepthNet50(layer_num, classes):
-    pretrained_path ="./Log/"
+    pretrained_path = cf.paths['resnet_pretrained_path']
     model = DepthNet(layer_num, classes)
 
     if os.path.isfile(os.path.join(pretrained_path, model.get_name()+'.pth')):
@@ -222,7 +223,7 @@ def DepthNet50(layer_num, classes):
 
 
 def DepthNet101(layer_num, classes):
-    pretrained_path ="./Log/"
+    pretrained_path = cf.paths['resnet_pretrained_path']
     model = DepthNet(layer_num, classes)
 
     if os.path.isfile(os.path.join(pretrained_path, model.get_name()+'.pth')):
@@ -236,7 +237,7 @@ def DepthNet101(layer_num, classes):
 
 
 def DepthNet152(layer_num, classes):
-    pretrained_path ="./Log/"
+    pretrained_path = cf.paths['resnet_pretrained_path']
     model = DepthNet(layer_num, classes)
 
     if os.path.isfile(os.path.join(pretrained_path, model.get_name()+'.pth')):

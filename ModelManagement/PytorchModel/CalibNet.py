@@ -1,4 +1,4 @@
-from UtilityManagement.pytorch_util import *
+import UtilityManagement.config as cf
 from ModelManagement.PytorchModel.ResNet import *
 from ModelManagement.PytorchModel.DepthNet import *
 import math
@@ -101,7 +101,7 @@ class CalibNet(nn.Module):
 
 
 def CalibNet18(layer_num, classes):
-    pretrained_path ="./Log/"
+    pretrained_path = cf.paths['resnet_pretrained_path']
     model = CalibNet(layer_num, classes)
 
     if os.path.isfile(os.path.join(pretrained_path, model.get_name()+'.pth')):

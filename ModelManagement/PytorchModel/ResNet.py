@@ -1,4 +1,5 @@
 from UtilityManagement.pytorch_util import *
+import UtilityManagement.config as cf
 import math
 import os
 import warnings
@@ -175,7 +176,7 @@ class ResNet(nn.Module):
         return nn.Sequential(*layers)
 
 def ResNet18(layer_num, classes):
-    pretrained_path ="./Log/"
+    pretrained_path = cf.paths['resnet_pretrained_path']
     model = ResNet(layer_num, classes)
 
     if os.path.isfile(os.path.join(pretrained_path, model.get_name()+'.pth')):
@@ -190,7 +191,7 @@ def ResNet18(layer_num, classes):
 
 
 def ResNet34(layer_num, classes):
-    pretrained_path ="./Log/"
+    pretrained_path = cf.paths['resnet_pretrained_path']
     model = ResNet(layer_num, classes)
 
     if os.path.isfile(os.path.join(pretrained_path, model.get_name()+'.pth')):
@@ -205,7 +206,7 @@ def ResNet34(layer_num, classes):
 
 
 def ResNet50(layer_num, classes):
-    pretrained_path ="./Log/"
+    pretrained_path = cf.paths['resnet_pretrained_path']
     model = ResNet(layer_num, classes)
 
     if os.path.isfile(os.path.join(pretrained_path, model.get_name()+'.pth')):
@@ -220,7 +221,7 @@ def ResNet50(layer_num, classes):
 
 
 def ResNet101(layer_num, classes):
-    pretrained_path ="./Log/"
+    pretrained_path = cf.paths['resnet_pretrained_path']
     model = ResNet(layer_num, classes)
 
     if os.path.isfile(os.path.join(pretrained_path, model.get_name()+'.pth')):
@@ -234,7 +235,7 @@ def ResNet101(layer_num, classes):
 
 
 def ResNet152(layer_num, classes):
-    pretrained_path ="./Log/"
+    pretrained_path = cf.paths['resnet_pretrained_path']
     model = ResNet(layer_num, classes)
 
     if os.path.isfile(os.path.join(pretrained_path, model.get_name()+'.pth')):
