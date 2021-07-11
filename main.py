@@ -2,7 +2,6 @@ from DataManagement.data_management import *
 from ModelManagement.PytorchModel.CalibNet import *
 from ModelManagement.model_management import *
 from UtilityManagement.AverageMeter import *
-from scipy.misc import imsave
 import matplotlib.pyplot as plt
 import time
 
@@ -12,10 +11,10 @@ devices = torch.device("cuda") if gpu_check else torch.device("cpu")
 
 # dataset test code
 trainingset = CalibNetDataset(cf.paths['dataset_path'], training=True)
-data_loader = get_loader(trainingset, batch_size=cf.network_info['batch_size'], shuffle=True, num_worker=0)
+data_loader = get_loader(trainingset, batch_size=cf.network_info['batch_size'], shuffle=True, num_worker=8)
 
 validationset = CalibNetDataset(cf.paths['dataset_path'], training=False)
-valid_loader = get_loader(validationset, batch_size=cf.network_info['batch_size'], shuffle=False, num_worker=0)
+valid_loader = get_loader(validationset, batch_size=cf.network_info['batch_size'], shuffle=False, num_worker=8)
 
 # model test code
 model = CalibNet18(18, 6).to(devices)
@@ -61,12 +60,10 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
             expected_transform = expected_transform.to(devices)
 
         output_vector, first_max_pool = model(source_image, source_depth_map)
-        T = get_RTMatrix_using_exponential_logarithm_mapping(output_vector)
-        depth_map_predicted = get_transformed_matrix(first_max_pool * 40.0 + 40.0, T, K_final, small_transform)
-        depth_map_predicted = torch.autograd.Variable(depth_map_predicted, requires_grad=True)
-        print("Predicted RT Matrix " , T)
-        print("Expected RT Matrix : " ,expected_transform)
-        depth_map_expected = get_transformed_matrix(first_max_pool * 40.0 + 40.0, expected_transform, K_final, small_transform)
+        T = get_RTMatrix_using_exponential_logarithm_mapping(output_vector).to(devices)
+        depth_map_predicted = get_transformed_matrix(first_max_pool * 40.0 + 40.0, T, K_final, small_transform).to(devices)
+        depth_map_predicted = torch.autograd.Variable(depth_map_predicted, requires_grad=True).to(devices)
+        depth_map_expected = get_transformed_matrix(first_max_pool * 40.0 + 40.0, expected_transform, K_final, small_transform).to(devices)
 
         loss = loss_fucntion((depth_map_predicted[:, 10:-10, 10:-10] - 40.0) / 40.0, (depth_map_expected[:, 10:-10, 10:-10] - 40.0) / 40.0)
 
@@ -79,11 +76,11 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
         batch_time.update(time.time() - end)
         end = time.time()
 
-        if i_batch % 1 == 0:
+        if i_batch % cf.network_info['freq_print'] == 0:
             print('Epoch: [{0}][{1}/{2}]\t'
                   'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                   'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
-                  'Loss {loss.val:.4f} ({loss.avg:.4f})\t'.format(epoch+1, i_batch+1, len(data_loader),
+                  'Loss {loss.val:.4f} ({loss.avg:.4f})\t'.format(epoch+1, i_batch, len(data_loader),
                                                         batch_time=batch_time, data_time=data_time, loss=losses))
 
         a = source_depth_map
@@ -148,11 +145,11 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
         batch_time.update(time.time() - end)
         end = time.time()
 
-        if i_batch % 1 == 0:
+        if i_batch % cf.network_info['freq_print'] == 0:
             print('Test: [{0}/{1}]\t'
                   'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                   'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
-                  'Loss {loss.val:.4f} ({loss.avg:.4f})\t'.format(i_batch+1, len(valid_loader),
+                  'Loss {loss.val:.4f} ({loss.avg:.4f})\t'.format(i_batch, len(valid_loader),
                                                         batch_time=batch_time, data_time=data_time, loss=losses))
 
         a = source_depth_map

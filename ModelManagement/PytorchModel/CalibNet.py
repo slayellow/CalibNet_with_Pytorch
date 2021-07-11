@@ -15,8 +15,8 @@ class CalibNet(nn.Module):
 
         self.model_name = 'CalibNet_{}'.format(layer_num)
 
-        self.resnet = ResNet18(layer_num, 0)
-        self.depthnet = DepthNet18(layer_num, 0)
+        self.resnet = ResNet18(layer_num, 1000)
+        self.depthnet = DepthNet18(layer_num, 1000)
 
         self.conv0 = set_conv(512 + 256, self.channels[0], kernel=3, strides=2, padding=1)
         self.bn0 = set_batch_normalization(self.channels[0])
@@ -101,7 +101,7 @@ class CalibNet(nn.Module):
 
 
 def CalibNet18(layer_num, classes):
-    pretrained_path = cf.paths['resnet_pretrained_path']
+    pretrained_path = cf.paths['pretrained_path']
     model = CalibNet(layer_num, classes)
 
     if os.path.isfile(os.path.join(pretrained_path, model.get_name()+'.pth')):

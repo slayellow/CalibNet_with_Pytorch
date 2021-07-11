@@ -99,9 +99,9 @@ class DepthNet(nn.Module):
         in_channel = 1
         self.inplanes = 32
 
-        if layer_num is 18 or layer_num is 34:
+        if layer_num == 18 or layer_num == 34:
             self.block = BasicBlock
-        elif layer_num is 50 or layer_num is 101 or layer_num is 152:
+        elif layer_num == 50 or layer_num == 101 or layer_num == 152:
             self.block = Bottleneck
         else:
             warnings.warn("클래스가 구성하는 Layer 갯수와 맞지 않습니다.")
@@ -178,7 +178,7 @@ class DepthNet(nn.Module):
         return nn.Sequential(*layers)
 
 def DepthNet18(layer_num, classes):
-    pretrained_path = cf.paths['resnet_pretrained_path']
+    pretrained_path = cf.paths['pretrained_path']
     model = DepthNet(layer_num, classes)
 
     if os.path.isfile(os.path.join(pretrained_path, model.get_name()+'.pth')):
@@ -193,7 +193,7 @@ def DepthNet18(layer_num, classes):
 
 
 def DepthNet34(layer_num, classes):
-    pretrained_path = cf.paths['resnet_pretrained_path']
+    pretrained_path = cf.paths['pretrained_path']
     model = DepthNet(layer_num, classes)
 
     if os.path.isfile(os.path.join(pretrained_path, model.get_name()+'.pth')):
@@ -208,7 +208,7 @@ def DepthNet34(layer_num, classes):
 
 
 def DepthNet50(layer_num, classes):
-    pretrained_path = cf.paths['resnet_pretrained_path']
+    pretrained_path = cf.paths['pretrained_path']
     model = DepthNet(layer_num, classes)
 
     if os.path.isfile(os.path.join(pretrained_path, model.get_name()+'.pth')):
@@ -223,7 +223,7 @@ def DepthNet50(layer_num, classes):
 
 
 def DepthNet101(layer_num, classes):
-    pretrained_path = cf.paths['resnet_pretrained_path']
+    pretrained_path = cf.paths['pretrained_path']
     model = DepthNet(layer_num, classes)
 
     if os.path.isfile(os.path.join(pretrained_path, model.get_name()+'.pth')):
@@ -237,7 +237,7 @@ def DepthNet101(layer_num, classes):
 
 
 def DepthNet152(layer_num, classes):
-    pretrained_path = cf.paths['resnet_pretrained_path']
+    pretrained_path = cf.paths['pretrained_path']
     model = DepthNet(layer_num, classes)
 
     if os.path.isfile(os.path.join(pretrained_path, model.get_name()+'.pth')):

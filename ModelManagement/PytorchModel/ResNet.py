@@ -99,9 +99,9 @@ class ResNet(nn.Module):
         in_channel = 3
         self.inplanes = 64
 
-        if layer_num is 18 or layer_num is 34:
+        if layer_num == 18 or layer_num == 34:
             self.block = BasicBlock
-        elif layer_num is 50 or layer_num is 101 or layer_num is 152:
+        elif layer_num == 50 or layer_num == 101 or layer_num == 152:
             self.block = Bottleneck
         else:
             warnings.warn("클래스가 구성하는 Layer 갯수와 맞지 않습니다.")
@@ -117,8 +117,8 @@ class ResNet(nn.Module):
         self.layer4 = self._make_layer(self.block, channels[3], blocks[layer_num][3], stride=2)
 
         # ***** Not Used ***** #
-        # self.gap = set_avg_pool(kernel=7)
-        # self.fcl = set_dense(channels[3] * self.block.expansions, classes)
+        self.gap = set_avg_pool(kernel=7)
+        self.fcl = set_dense(channels[3] * self.block.expansions, classes)
 
     def forward(self, x):
         x = self.conv0(x)
@@ -175,8 +175,9 @@ class ResNet(nn.Module):
 
         return nn.Sequential(*layers)
 
+
 def ResNet18(layer_num, classes):
-    pretrained_path = cf.paths['resnet_pretrained_path']
+    pretrained_path = cf.paths['pretrained_path']
     model = ResNet(layer_num, classes)
 
     if os.path.isfile(os.path.join(pretrained_path, model.get_name()+'.pth')):
@@ -191,7 +192,7 @@ def ResNet18(layer_num, classes):
 
 
 def ResNet34(layer_num, classes):
-    pretrained_path = cf.paths['resnet_pretrained_path']
+    pretrained_path = cf.paths['pretrained_path']
     model = ResNet(layer_num, classes)
 
     if os.path.isfile(os.path.join(pretrained_path, model.get_name()+'.pth')):
@@ -206,7 +207,7 @@ def ResNet34(layer_num, classes):
 
 
 def ResNet50(layer_num, classes):
-    pretrained_path = cf.paths['resnet_pretrained_path']
+    pretrained_path = cf.paths['pretrained_path']
     model = ResNet(layer_num, classes)
 
     if os.path.isfile(os.path.join(pretrained_path, model.get_name()+'.pth')):
@@ -221,7 +222,7 @@ def ResNet50(layer_num, classes):
 
 
 def ResNet101(layer_num, classes):
-    pretrained_path = cf.paths['resnet_pretrained_path']
+    pretrained_path = cf.paths['pretrained_path']
     model = ResNet(layer_num, classes)
 
     if os.path.isfile(os.path.join(pretrained_path, model.get_name()+'.pth')):
@@ -235,7 +236,7 @@ def ResNet101(layer_num, classes):
 
 
 def ResNet152(layer_num, classes):
-    pretrained_path = cf.paths['resnet_pretrained_path']
+    pretrained_path = cf.paths['pretrained_path']
     model = ResNet(layer_num, classes)
 
     if os.path.isfile(os.path.join(pretrained_path, model.get_name()+'.pth')):

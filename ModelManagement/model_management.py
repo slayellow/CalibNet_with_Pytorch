@@ -1,7 +1,13 @@
-import torch
+import os
+os.environ["TF_FORCE_GPU_ALLOW_GROWTH"] = 'true'
+
 import UtilityManagement.config as cf
+from UtilityManagement.pytorch_util import *
 import tensorflow as tf
 
+
+gpu_check = is_gpu_avaliable()
+devices = torch.device("cuda") if gpu_check else torch.device("cpu")
 
 IMG_WIDTH = cf.camera_info["WIDTH"]
 IMG_HEIGHT = cf.camera_info['HEIGHT']
@@ -18,11 +24,11 @@ def get_RTMatrix_using_exponential_logarithm_mapping(se_vector):
 
         theta = torch.sqrt(w[0] * w[0] + w[1] * w[1] + w[2] * w[2])
 
-        w_cross = torch.Tensor([0.0, -w[2], w[1], w[2], 0.0, -w[0], -w[1], w[0], 0.0])
+        w_cross = torch.Tensor([0.0, -w[2], w[1], w[2], 0.0, -w[0], -w[1], w[0], 0.0]).to(devices)
         w_cross = torch.reshape(w_cross, [3, 3])
 
-        thetaa = theta.detach().numpy()
-        if thetaa is 0:
+        thetaa = theta.cpu().detach().numpy()
+        if thetaa == 0:
             print("Theta is 0", thetaa)
             A = 0
             B = 0
@@ -34,8 +40,8 @@ def get_RTMatrix_using_exponential_logarithm_mapping(se_vector):
 
         w_cross_square = torch.matmul(w_cross, w_cross)
 
-        R = torch.eye(3) + A * w_cross + B * w_cross_square
-        Q = torch.eye(3) + B * w_cross + C * w_cross_square
+        R = torch.eye(3).to(devices) + A * w_cross + B * w_cross_square
+        Q = torch.eye(3).to(devices) + B * w_cross + C * w_cross_square
 
         t = torch.matmul(Q, torch.unsqueeze(v, 1))
 
@@ -58,7 +64,7 @@ def get_RTMatrix_using_EulerAngles(se_vector, order='ZYX'):
         rotation = vector[3:]
         rx = rotation[0]; ry = rotation[1]; rz = rotation[2]
 
-        if order is 'ZYX':
+        if order == 'ZYX':
             matR = torch.Tensor([ torch.cos(rz)*torch.cos(ry),
                                   torch.cos(rz)*torch.sin(ry)*torch.sin(rx) - torch.sin(rz)*torch.cos(rx),
                                   torch.cos(rz)*torch.sin(ry)*torch.cos(rx) + torch.sin(rz)*torch.sin(rx),
@@ -184,7 +190,7 @@ def get_3D_meshgrid_batchwise_diff_tensorflow(height, width, depth_map, RTMatrix
     # flatten ( 2D-Space Value )
     x_t_flat = tf.reshape(x_t, [1, -1])
     y_t_flat = tf.reshape(y_t, [1, -1])
-    ZZ = tf.reshape(depth_map, [-1])
+    ZZ = tf.reshape(depth_map.cpu(), [-1])
 
     # 0이 아닌 값들이 Point Cloud가 속해 있는 값이므로 mask를 씌어 해당 값들만 살린다.
     zeros_target = tf.zeros_like(ZZ)
@@ -197,18 +203,18 @@ def get_3D_meshgrid_batchwise_diff_tensorflow(height, width, depth_map, RTMatrix
     ones_saved = tf.expand_dims(tf.ones_like(ZZ_saved), 0)
 
     # Sparse한 좌표 값에 Depth 값을 곱하고 카메라 Intrinsic Parameter의 역행렬 값을 곱하여 실제 Point Cloud 좌표를 도출한다.
-    projection_grid_3d = tf.matmul(tf.compat.v1.matrix_inverse(KMatrix), sampling_grid_2d_sparse * ZZ_saved)
+    projection_grid_3d = tf.matmul(tf.compat.v1.matrix_inverse(KMatrix.cpu()), sampling_grid_2d_sparse * ZZ_saved)
 
     # 3D Point Cloud 를 Homogeneous Coordinate에 표현
     homog_point_3d = tf.concat([projection_grid_3d, ones_saved], 0)
 
     # Random Transformation 시 진행한 RTMatrix, cam_translation의 반대로 cam_translation_inv와 예측한 RTMatrix 곱
-    final_transformation_matrix = tf.matmul(RTMatrix, small_transform)[:3, :]
+    final_transformation_matrix = tf.matmul(RTMatrix.cpu(), small_transform.cpu())[:3, :]
     warped_sampling_grid = tf.matmul(final_transformation_matrix, homog_point_3d)
 
     # Homogeneous Coordinate 상의 점과 곱하여 3차원 결과 도출
     # Camera Intrinsic Parameter를 곱하여 이미지에 매핑 가능한 3차원 좌표 도출
-    points_2d = tf.matmul(KMatrix, warped_sampling_grid[:3, :])
+    points_2d = tf.matmul(KMatrix.cpu(), warped_sampling_grid[:3, :])
 
     Z = points_2d[2, :]
 
