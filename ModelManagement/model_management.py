@@ -27,7 +27,7 @@ def get_RTMatrix_using_exponential_logarithm_mapping(se_vector):
         w_cross = torch.Tensor([0.0, -w[2], w[1], w[2], 0.0, -w[0], -w[1], w[0], 0.0]).to(devices)
         w_cross = torch.reshape(w_cross, [3, 3])
 
-        thetaa = theta.cpu().detach().numpy()
+        thetaa = theta.detach()
         if thetaa == 0:
             print("Theta is 0", thetaa)
             A = 0

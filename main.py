@@ -3,6 +3,7 @@ from ModelManagement.PytorchModel.CalibNet import *
 from ModelManagement.model_management import *
 from UtilityManagement.AverageMeter import *
 import matplotlib.pyplot as plt
+from torch.profiler import *
 import time
 
 
@@ -61,11 +62,14 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
 
         output_vector, first_max_pool = model(source_image, source_depth_map)
         T = get_RTMatrix_using_exponential_logarithm_mapping(output_vector).to(devices)
-        depth_map_predicted = get_transformed_matrix(first_max_pool * 40.0 + 40.0, T, K_final, small_transform).to(devices)
+        depth_map_predicted = get_transformed_matrix(first_max_pool * 40.0 + 40.0, T, K_final,
+                                                     small_transform).to(devices)
         depth_map_predicted = torch.autograd.Variable(depth_map_predicted, requires_grad=True).to(devices)
-        depth_map_expected = get_transformed_matrix(first_max_pool * 40.0 + 40.0, expected_transform, K_final, small_transform).to(devices)
+        depth_map_expected = get_transformed_matrix(first_max_pool * 40.0 + 40.0, expected_transform, K_final,
+                                                    small_transform).to(devices)
 
-        loss = loss_fucntion((depth_map_predicted[:, 10:-10, 10:-10] - 40.0) / 40.0, (depth_map_expected[:, 10:-10, 10:-10] - 40.0) / 40.0)
+        loss = loss_fucntion((depth_map_predicted[:, 10:-10, 10:-10] - 40.0) / 40.0,
+                             (depth_map_expected[:, 10:-10, 10:-10] - 40.0) / 40.0)
 
         losses.update(loss.item(), source_depth_map.size(0))
 
@@ -89,22 +93,22 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
         d = depth_map_expected
 
     plt.subplot(4, 1, 1)
-    plt.imshow(a[0, 0, :, :])
+    plt.imshow(a[0, 0, :, :].cpu())
     plt.axis('off')
     plt.ioff()
     plt.title('Input Depth Map', fontsize=7)
     plt.subplot(4, 1, 2)
-    plt.imshow(b[0, 0, :, :])
+    plt.imshow(b[0, 0, :, :].cpu())
     plt.axis('off')
     plt.ioff()
     plt.title('Target Depth Map', fontsize=7)
     plt.subplot(4, 1, 3)
-    plt.imshow(c[0, :, :].detach().numpy())
+    plt.imshow(c[0, :, :].cpu().detach().numpy())
     plt.axis('off')
     plt.ioff()
     plt.title('Predicted Depth Map', fontsize=7)
     plt.subplot(4, 1, 4)
-    plt.imshow(d[0, :, :])
+    plt.imshow(d[0, :, :].cpu())
     plt.axis('off')
     plt.ioff()
     plt.title('Expected Depth Map', fontsize=7)
@@ -165,22 +169,22 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
         'optimizer': optimizer.state_dict()}, False, os.path.join(pretrained_path, model.get_name()),'pth')
 
     plt.subplot(4, 1, 1)
-    plt.imshow(a[0, 0, :, :])
+    plt.imshow(a[0, 0, :, :].cpu())
     plt.axis('off')
     plt.ioff()
     plt.title('Input Depth Map', fontsize=7)
     plt.subplot(4, 1, 2)
-    plt.imshow(b[0, 0, :, :])
+    plt.imshow(b[0, 0, :, :].cpu())
     plt.axis('off')
     plt.ioff()
     plt.title('Target Depth Map', fontsize=7)
     plt.subplot(4, 1, 3)
-    plt.imshow(c[0, :, :].detach().numpy())
+    plt.imshow(c[0, :, :].cpu().detach().numpy())
     plt.axis('off')
     plt.ioff()
     plt.title('Predicted Depth Map', fontsize=7)
     plt.subplot(4, 1, 4)
-    plt.imshow(d[0, :, :])
+    plt.imshow(d[0, :, :].cpu())
     plt.axis('off')
     plt.ioff()
     plt.title('Expected Depth Map', fontsize=7)
