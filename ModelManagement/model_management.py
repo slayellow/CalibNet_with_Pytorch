@@ -4,6 +4,7 @@ os.environ["TF_FORCE_GPU_ALLOW_GROWTH"] = 'true'
 import UtilityManagement.config as cf
 from UtilityManagement.pytorch_util import *
 import tensorflow as tf
+import numpy as np
 
 
 gpu_check = is_gpu_avaliable()
@@ -86,23 +87,55 @@ def get_RTMatrix_using_EulerAngles(se_vector, order='ZYX'):
     return torch.Tensor(output)
 
 
+def sparsify_cloud_tensorflow(S):
+    point_limit = 4096
+    no_points = tf.shape(S)[0]
+    no_partitions = no_points / tf.constant(point_limit, dtype=tf.int32)
+    a = [tf.expand_dims(tf.range(0, tf.cast(no_partitions, dtype=tf.int32)*point_limit), 1)]
+    saved_points = tf.gather_nd(S, a)
+    saved_points = tf.reshape(saved_points, [point_limit, no_partitions, 3])
+    saved_points_sparse = tf.reduce_mean(saved_points, 1)
+
+    return saved_points_sparse
+
+
+def sparsify_cloud(S):
+    point_limit = 4096
+    no_points = torch.tensor(S.shape[0])
+    no_partitions = (no_points / torch.tensor(point_limit, dtype=torch.int32)).type(torch.int32)
+    a = torch.unsqueeze(torch.unsqueeze(torch.arange(0, no_partitions * point_limit), 1), 0)
+
+    ##### Use Tensorflow
+    saved_points = torch.from_numpy(tf.gather_nd(tf.Variable(S.numpy()), tf.Variable(a.numpy())).numpy())
+
+    saved_points = torch.reshape(saved_points, [point_limit, no_partitions.type(torch.int32), 3])
+    saved_points_sparse = torch.mean(saved_points, 1)
+
+    return saved_points_sparse
+
+
 def get_transformed_matrix(depth_map, RTMatrix, KMatrix, small_transform):
 
     output_depth_map = []
+    output_sparse_cloud = []
     for i in range(depth_map.shape[0]):
         idx_depth_map = depth_map[i]
         idx_RTMatrix = RTMatrix[i]
-        batch_grids, transformed_depth_map = get_3D_meshgrid_batchwise_diff_tensorflow(IMG_HEIGHT, IMG_WIDTH, idx_depth_map[0, :, :], idx_RTMatrix,
-                                       KMatrix, small_transform)
 
-        x_all = tf.reshape(batch_grids[:, 0], (IMG_HEIGHT, IMG_WIDTH))
-        y_all = tf.reshape(batch_grids[:, 1], (IMG_HEIGHT, IMG_WIDTH))
+        batch_grids, transformed_depth_map, sparse_cloud = get_3D_meshgrid_batchwise_diff(IMG_HEIGHT, IMG_WIDTH,
+                                                                                       idx_depth_map[0, :, :],
+                                                                                       idx_RTMatrix,
+                                                                                       KMatrix, small_transform)
+
+        x_all = torch.reshape(batch_grids[:, 0], (IMG_HEIGHT, IMG_WIDTH))
+        y_all = torch.reshape(batch_grids[:, 1], (IMG_HEIGHT, IMG_WIDTH))
 
         bilinear_sampling_depth_map = get_bilinear_sampling_depth_map(transformed_depth_map, x_all, y_all)
 
         output_depth_map.append(bilinear_sampling_depth_map.numpy())
+        output_sparse_cloud.append(sparse_cloud.numpy())
 
-    return torch.Tensor(output_depth_map)
+    return torch.Tensor(output_depth_map), torch.Tensor(output_sparse_cloud)
 
 
 def get_3D_meshgrid_batchwise_diff(height, width, depth_map, RTMatrix, KMatrix, small_transform):
@@ -113,6 +146,8 @@ def get_3D_meshgrid_batchwise_diff(height, width, depth_map, RTMatrix, KMatrix, 
     z_index = torch.arange(0, width * height)
 
     x_t, y_t = torch.meshgrid(x_index, y_index)
+    x_t = torch.transpose(x_t, 0, 1)
+    y_t = torch.transpose(y_t, 0, 1)
 
     # flatten ( 2D-Space Value )
     x_t_flat = torch.reshape(x_t, [1, -1])
@@ -154,6 +189,9 @@ def get_3D_meshgrid_batchwise_diff(height, width, depth_map, RTMatrix, KMatrix, 
 
     x_dash_pred = points_2d[0, :]
     y_dash_pred = points_2d[1, :]
+    point_cloud = torch.stack([x_dash_pred, y_dash_pred, Z], 1)
+
+    sparse_point_cloud = sparsify_cloud(point_cloud)
 
     x = (points_2d[0, :]/Z)
     y = (points_2d[1, :]/Z)
@@ -162,145 +200,81 @@ def get_3D_meshgrid_batchwise_diff(height, width, depth_map, RTMatrix, KMatrix, 
 
     update_indices = torch.unsqueeze(torch.masked_select(mask_int*z_index, mask), 1)
 
-    # Use Tensorflow Function
-    updated_Z = torch.from_numpy(tf.scatter_nd(update_indices, Z, tf.constant([width*height])).numpy())
-    updated_x = torch.from_numpy(tf.scatter_nd(update_indices, x, tf.constant([width*height])).numpy())
+    updated_Z = torch.squeeze(torch.zeros(width*height, 1, dtype=torch.float32).scatter_(0, update_indices, torch.unsqueeze(Z, 1)))
+    updated_x = torch.squeeze(torch.zeros(width*height, 1, dtype=torch.float32).scatter_(0, update_indices, torch.unsqueeze(x, 1)))
     neg_ones = torch.ones_like(updated_x) * -1.0
     updated_x_fin = torch.where(torch.eq(updated_Z, zeros_target), neg_ones, updated_x)
-    updated_y = torch.from_numpy(tf.scatter_nd(update_indices, y, tf.constant([width*height])).numpy())
+    updated_y = torch.squeeze(torch.zeros(width*height, 1, dtype=torch.float32).scatter_(0, update_indices, torch.unsqueeze(y, 1)))
     updated_y_fin = torch.where(torch.eq(updated_Z, zeros_target), neg_ones, updated_y)
 
     reprojected_grid = torch.stack([updated_x_fin, updated_y_fin], 1)
 
     transformed_depth = torch.reshape(updated_Z, (height, width))
 
-    return reprojected_grid, transformed_depth
-
-
-
-def get_3D_meshgrid_batchwise_diff_tensorflow(height, width, depth_map, RTMatrix, KMatrix, small_transform):
-
-    # 1D-Space Value
-    x_index = tf.linspace(-1.0, 1.0, width)
-    y_index = tf.linspace(-1.0, 1.0, height)
-    z_index = tf.range(0, width * height)
-
-    x_t, y_t = tf.meshgrid(x_index, y_index)
-
-    # flatten ( 2D-Space Value )
-    x_t_flat = tf.reshape(x_t, [1, -1])
-    y_t_flat = tf.reshape(y_t, [1, -1])
-    ZZ = tf.reshape(depth_map.cpu(), [-1])
-
-    # 0이 아닌 값들이 Point Cloud가 속해 있는 값이므로 mask를 씌어 해당 값들만 살린다.
-    zeros_target = tf.zeros_like(ZZ)
-    mask = tf.not_equal(ZZ, zeros_target)
-    ones = tf.ones_like(x_t_flat)
-
-    sampling_grid_2d = tf.concat([x_t_flat, y_t_flat, ones], 0)
-    sampling_grid_2d_sparse = tf.transpose(tf.boolean_mask(tf.transpose(sampling_grid_2d), mask))
-    ZZ_saved = tf.boolean_mask(ZZ, mask)
-    ones_saved = tf.expand_dims(tf.ones_like(ZZ_saved), 0)
-
-    # Sparse한 좌표 값에 Depth 값을 곱하고 카메라 Intrinsic Parameter의 역행렬 값을 곱하여 실제 Point Cloud 좌표를 도출한다.
-    projection_grid_3d = tf.matmul(tf.compat.v1.matrix_inverse(KMatrix.cpu()), sampling_grid_2d_sparse * ZZ_saved)
-
-    # 3D Point Cloud 를 Homogeneous Coordinate에 표현
-    homog_point_3d = tf.concat([projection_grid_3d, ones_saved], 0)
-
-    # Random Transformation 시 진행한 RTMatrix, cam_translation의 반대로 cam_translation_inv와 예측한 RTMatrix 곱
-    final_transformation_matrix = tf.matmul(RTMatrix.cpu(), small_transform.cpu())[:3, :]
-    warped_sampling_grid = tf.matmul(final_transformation_matrix, homog_point_3d)
-
-    # Homogeneous Coordinate 상의 점과 곱하여 3차원 결과 도출
-    # Camera Intrinsic Parameter를 곱하여 이미지에 매핑 가능한 3차원 좌표 도출
-    points_2d = tf.matmul(KMatrix.cpu(), warped_sampling_grid[:3, :])
-
-    Z = points_2d[2, :]
-
-    x_dash_pred = points_2d[0, :]
-    y_dash_pred = points_2d[1, :]
-
-    x = tf.transpose(points_2d[0, :]/Z)
-    y = tf.transpose(points_2d[1, :]/Z)
-
-    mask_int = tf.cast(mask, 'int32')
-
-    update_indices = tf.expand_dims(tf.boolean_mask(mask_int*z_index, mask), 1)
-
-    # Use Tensorflow Function
-    updated_Z = (tf.scatter_nd(update_indices, Z, tf.constant([width*height])))
-    updated_x = (tf.scatter_nd(update_indices, x, tf.constant([width*height])))
-    neg_ones = tf.ones_like(updated_x) * -1.0
-    updated_x_fin = tf.where(tf.equal(updated_Z, zeros_target), neg_ones, updated_x)
-    updated_y = (tf.scatter_nd(update_indices, y, tf.constant([width*height])))
-    updated_y_fin = tf.where(tf.equal(updated_Z, zeros_target), neg_ones, updated_y)
-
-    reprojected_grid = tf.stack([updated_x_fin, updated_y_fin], 1)
-
-    transformed_depth = tf.reshape(updated_Z, (height, width))
-
-    return torch.from_numpy(reprojected_grid.numpy()), torch.from_numpy(transformed_depth.numpy())
+    return reprojected_grid, transformed_depth, sparse_point_cloud
 
 
 def reverse_all(z):
-    z = tf.cast(z, 'float32')
-    w = tf.floor((tf.sqrt(8.*z + 1.) - 1.) / 2.0)
+    z = z.type(torch.float32)
+    w = torch.floor((torch.sqrt(8.*z + 1.) - 1.) / 2.0)
     t = (w**2 + w) / 2.0
-    y = tf.clip_by_value(tf.expand_dims(z - t, 1), 0.0, IMG_HEIGHT - 1)
-    x = tf.clip_by_value(tf.expand_dims(w - y[:, 0], 1), 0.0, IMG_WIDTH - 1)
-    return tf.concat([y, x], 1)
+    y = torch.clamp(torch.unsqueeze(z-t, 1), 0.0, IMG_HEIGHT - 1)
+    x = torch.clamp(torch.unsqueeze(w - y[:, 0], 1), 0.0, IMG_WIDTH -1)
+    return torch.cat([y, x], 1)
 
 
 def get_pixel_value(img, x, y):
-    indices = tf.stack([y, x], 2)
-    indices = tf.reshape(indices, (IMG_HEIGHT*IMG_WIDTH, 2))
-    values = tf.reshape(img, [-1])
+    indices = torch.stack([y, x], 2)
+    indices = torch.reshape(indices, (IMG_HEIGHT*IMG_WIDTH, 2))
+    values = torch.reshape(img, [-1])
 
-    Y = tf.cast(indices[:, 0], 'float32')
-    X = tf.cast(indices[:, 1], 'float32')
-    Z = (X + Y) * (X + Y + 1) / 2 + Y
+    Y = indices[:, 0].type(torch.float32)
+    X = indices[:, 1].type(torch.float32)
+    Z = (X+Y) * (X+Y+1) / 2 + Y
 
+    ##### Use Tensorflow
     filtered, idx = tf.unique(tf.squeeze(Z))
-    updated_values = tf.compat.v1.unsorted_segment_max(values, idx, filtered.shape[0])
+    filtered, idx = torch.from_numpy(filtered.numpy()), torch.from_numpy(idx.numpy())
+    updated_values = torch.from_numpy(tf.compat.v1.unsorted_segment_max(values, idx, filtered.shape[0]).numpy())
 
     updated_indices = reverse_all(filtered)
-    updated_indices = tf.cast(updated_indices, 'int32')
+    updated_indices = updated_indices.type(torch.int32)
+
+    ##### Use Tensorflow
     resolved_map = torch.from_numpy(tf.scatter_nd(updated_indices, updated_values, img.shape).numpy())
 
     return resolved_map
 
 
 def get_bilinear_sampling_depth_map(depth_map, x_func, y_func):
+    max_y = torch.tensor(IMG_HEIGHT - 1, dtype=torch.int32)
+    max_x = torch.tensor(IMG_WIDTH - 1, dtype=torch.int32)
 
-    max_y = tf.constant(IMG_HEIGHT - 1, dtype=tf.int32)
-    max_x = tf.constant(IMG_WIDTH - 1, dtype=tf.int32)
+    x = 0.5 * ((x_func + 1.0) * torch.tensor(IMG_WIDTH - 1, dtype=torch.float32))
+    y = 0.5 * ((y_func + 1.0) * torch.tensor(IMG_HEIGHT - 1, dtype=torch.float32))
 
-    x = 0.5 * ((x_func + 1.0) * tf.cast(IMG_WIDTH - 1, dtype=tf.float32))
-    y = 0.5 * ((y_func + 1.0) * tf.cast(IMG_HEIGHT - 1, dtype=tf.float32))
+    x = torch.clamp(x, 0.0, max_x.type(torch.float32))
+    y = torch.clamp(y, 0.0, max_y.type(torch.float32))
 
-    x = tf.clip_by_value(x, 0.0, tf.cast(max_x, 'float32'))
-    y = tf.clip_by_value(y, 0.0, tf.cast(max_y, 'float32'))
-
-    x0 = tf.cast(tf.floor(x), 'int32')
+    x0 = torch.floor(x).type(torch.int32)
     x1 = x0 + 1
-    y0 = tf.cast(tf.floor(y), 'int32')
+    y0 = torch.floor(y).type(torch.int32)
     y1 = y0 + 1
 
-    x0 = tf.clip_by_value(x0, 0, max_x)
-    x1 = tf.clip_by_value(x1, 0, max_x)
-    y0 = tf.clip_by_value(y0, 0, max_y)
-    y1 = tf.clip_by_value(y1, 0, max_y)
+    x0 = torch.clamp(x0, 0, max_x)
+    x1 = torch.clamp(x1, 0, max_x)
+    y0 = torch.clamp(y0, 0, max_y)
+    y1 = torch.clamp(y1, 0, max_y)
 
     Ia = get_pixel_value(depth_map, x0, y0)
     Ib = get_pixel_value(depth_map, x0, y1)
     Ic = get_pixel_value(depth_map, x1, y0)
     Id = get_pixel_value(depth_map, x1, y1)
 
-    x0 = tf.cast(x0, 'float32')
-    x1 = tf.cast(x1, 'float32')
-    y0 = tf.cast(y0, 'float32')
-    y1 = tf.cast(y1, 'float32')
+    x0 = x0.type(torch.float32)
+    x1 = x1.type(torch.float32)
+    y0 = y0.type(torch.float32)
+    y1 = y1.type(torch.float32)
 
     wa = (x1-x) * (y1-y)
     wb = (x1-x) * (y-y0)
@@ -308,6 +282,27 @@ def get_bilinear_sampling_depth_map(depth_map, x_func, y_func):
     wd = (x-x0) * (y-y0)
 
     loc = wa*Ia + wb*Ib + wc*Ic + wd*Id
+
+    #
+    # zeors_target_numpy =  loc.numpy()
+    # zeors_target_tensorflow_numpy = loc_tensorflow.numpy()
+    # torch_list = []
+    # tensorflow_list = []
+    # count = 0
+    # for i in range(zeors_target_numpy.shape[0]):
+    #     for j in range(zeors_target_numpy.shape[1]):
+    #         print("Torch : ", round(zeors_target_numpy[i][j], 4 ), " || Tensorflow : ", round(zeors_target_tensorflow_numpy[i][j], 4))
+    #         if round(zeors_target_numpy[i][j], 4 ) == round(zeors_target_tensorflow_numpy[i][j], 4):
+    #             continue
+    #         else:
+    #             torch_list.append(round(zeors_target_numpy[i][j], 4 ))
+    #             tensorflow_list.append(round(zeors_target_tensorflow_numpy[i][j], 4))
+    #             count = count + 1
+    #
+    # for i, j in zip(torch_list, tensorflow_list):
+    #     print("Diff : ", i, j, abs(round(i-j, 3)))
+    # print("Another Point Position : ", count)
+    # exit(0)
 
     return loc
 

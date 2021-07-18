@@ -3,7 +3,6 @@ from ModelManagement.PytorchModel.CalibNet import *
 from ModelManagement.model_management import *
 from UtilityManagement.AverageMeter import *
 import matplotlib.pyplot as plt
-from torch.profiler import *
 import time
 
 
@@ -12,10 +11,10 @@ devices = torch.device("cuda") if gpu_check else torch.device("cpu")
 
 # dataset test code
 trainingset = CalibNetDataset(cf.paths['dataset_path'], training=True)
-data_loader = get_loader(trainingset, batch_size=cf.network_info['batch_size'], shuffle=True, num_worker=8)
+data_loader = get_loader(trainingset, batch_size=cf.network_info['batch_size'], shuffle=True, num_worker=cf.network_info['num_worker'])
 
 validationset = CalibNetDataset(cf.paths['dataset_path'], training=False)
-valid_loader = get_loader(validationset, batch_size=cf.network_info['batch_size'], shuffle=False, num_worker=8)
+valid_loader = get_loader(validationset, batch_size=cf.network_info['batch_size'], shuffle=False, num_worker=cf.network_info['num_worker'])
 
 # model test code
 model = CalibNet18(18, 6).to(devices)
@@ -62,11 +61,16 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
 
         output_vector, first_max_pool = model(source_image, source_depth_map)
         T = get_RTMatrix_using_exponential_logarithm_mapping(output_vector).to(devices)
-        depth_map_predicted = get_transformed_matrix(first_max_pool * 40.0 + 40.0, T, K_final,
-                                                     small_transform).to(devices)
+        depth_map_predicted, sparse_cloud_predicted = get_transformed_matrix(first_max_pool * 40.0 + 40.0, T, K_final,
+                                                     small_transform)
         depth_map_predicted = torch.autograd.Variable(depth_map_predicted, requires_grad=True).to(devices)
-        depth_map_expected = get_transformed_matrix(first_max_pool * 40.0 + 40.0, expected_transform, K_final,
-                                                    small_transform).to(devices)
+        sparse_cloud_predicted = sparse_cloud_predicted.to(devices)
+
+        depth_map_expected, sparse_cloud_expected = get_transformed_matrix(first_max_pool * 40.0 + 40.0, expected_transform, K_final,
+                                                    small_transform)
+
+        depth_map_expected = depth_map_expected.to(devices)
+        sparse_cloud_expected = sparse_cloud_expected.to(devices)
 
         loss = loss_fucntion((depth_map_predicted[:, 10:-10, 10:-10] - 40.0) / 40.0,
                              (depth_map_expected[:, 10:-10, 10:-10] - 40.0) / 40.0)
@@ -92,26 +96,31 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
         c = depth_map_predicted
         d = depth_map_expected
 
-    plt.subplot(4, 1, 1)
-    plt.imshow(a[0, 0, :, :].cpu())
-    plt.axis('off')
-    plt.ioff()
-    plt.title('Input Depth Map', fontsize=7)
-    plt.subplot(4, 1, 2)
-    plt.imshow(b[0, 0, :, :].cpu())
-    plt.axis('off')
-    plt.ioff()
-    plt.title('Target Depth Map', fontsize=7)
-    plt.subplot(4, 1, 3)
-    plt.imshow(c[0, :, :].cpu().detach().numpy())
-    plt.axis('off')
-    plt.ioff()
-    plt.title('Predicted Depth Map', fontsize=7)
-    plt.subplot(4, 1, 4)
-    plt.imshow(d[0, :, :].cpu())
-    plt.axis('off')
-    plt.ioff()
-    plt.title('Expected Depth Map', fontsize=7)
+        # count = 0
+        # for i in range(sparse_cloud_expected.shape[1]):
+        #     for y in range(sparse_cloud_expected_pytorch.shape[2]):
+        #         if sparse_cloud_expected[0, i, y].detach().numpy() == 0.0:
+        #             if sparse_cloud_expected_pytorch[0, i, y].detach().numpy() == 0.0:
+        #                 continue
+        #             else:
+        #                 count = count+1
+        #         else:
+        #             if sparse_cloud_expected_pytorch[0, i, y].detach().numpy() == 0.0:
+        #                 count = count+1
+        #             else:
+        #                 continue
+        # print("Another Point Position : ", count)
+
+    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
+    fig.suptitle('Sharing x per column, y per row')
+    ax1.imshow(a[0, 0, :, :].cpu())
+    ax1.axis('off')
+    ax3.imshow(b[0, 0, :, :].cpu())
+    ax3.axis('off')
+    ax2.imshow(c[0, :, :].cpu().detach().numpy())
+    ax2.axis('off')
+    ax4.imshow(d[0, :, :].cpu().detach().numpy())
+    ax4.axis('off')
     plt.savefig(os.path.join(cf.paths['training_img_result_path'], 'Training_'+str(epoch+1)+'.png'))
     plt.close()
 
@@ -136,14 +145,23 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
             expected_transform = expected_transform.to(devices)
 
         output_vector, first_max_pool = model(source_image, source_depth_map)
+
         T = get_RTMatrix_using_exponential_logarithm_mapping(output_vector).to(devices)
-        depth_map_predicted = get_transformed_matrix(first_max_pool * 40.0 + 40.0, T, K_final, small_transform).to(devices)
+
+        depth_map_predicted, sparse_cloud_predicted = get_transformed_matrix(first_max_pool * 40.0 + 40.0, T, K_final,
+                                                                             small_transform)
         depth_map_predicted = torch.autograd.Variable(depth_map_predicted, requires_grad=True).to(devices)
+        sparse_cloud_predicted = sparse_cloud_predicted.to(devices)
 
-        depth_map_expected = get_transformed_matrix(first_max_pool * 40.0 + 40.0, expected_transform, K_final, small_transform).to(devices)
+        depth_map_expected, sparse_cloud_expected = get_transformed_matrix(first_max_pool * 40.0 + 40.0,
+                                                                           expected_transform, K_final,
+                                                                           small_transform)
 
-        loss = loss_fucntion((depth_map_predicted[:, 10:-10, 10:-10] - 40.0) / 40.0, (depth_map_expected[:, 10:-10, 10:-10] - 40.0) / 40.0)
+        depth_map_expected = depth_map_expected.to(devices)
+        sparse_cloud_expected = sparse_cloud_expected.to(devices)
 
+        loss = loss_fucntion((depth_map_predicted[:, 10:-10, 10:-10] - 40.0) / 40.0,
+                             (depth_map_expected[:, 10:-10, 10:-10] - 40.0) / 40.0)
         losses.update(loss.item(), source_depth_map.size(0))
 
         batch_time.update(time.time() - end)
@@ -168,26 +186,16 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
         'state_dict': model.state_dict(),
         'optimizer': optimizer.state_dict()}, False, os.path.join(pretrained_path, model.get_name()),'pth')
 
-    plt.subplot(4, 1, 1)
-    plt.imshow(a[0, 0, :, :].cpu())
-    plt.axis('off')
-    plt.ioff()
-    plt.title('Input Depth Map', fontsize=7)
-    plt.subplot(4, 1, 2)
-    plt.imshow(b[0, 0, :, :].cpu())
-    plt.axis('off')
-    plt.ioff()
-    plt.title('Target Depth Map', fontsize=7)
-    plt.subplot(4, 1, 3)
-    plt.imshow(c[0, :, :].cpu().detach().numpy())
-    plt.axis('off')
-    plt.ioff()
-    plt.title('Predicted Depth Map', fontsize=7)
-    plt.subplot(4, 1, 4)
-    plt.imshow(d[0, :, :].cpu())
-    plt.axis('off')
-    plt.ioff()
-    plt.title('Expected Depth Map', fontsize=7)
+    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
+    fig.suptitle('Sharing x per column, y per row')
+    ax1.imshow(a[0, 0, :, :].cpu())
+    ax1.axis('off')
+    ax3.imshow(b[0, 0, :, :].cpu())
+    ax3.axis('off')
+    ax2.imshow(c[0, :, :].cpu().detach().numpy())
+    ax2.axis('off')
+    ax4.imshow(d[0, :, :].cpu().detach().numpy())
+    ax4.axis('off')
     plt.savefig(os.path.join(cf.paths['validation_img_result_path'], 'Validation_'+str(epoch+1)+'.png'))
     plt.close()
 
