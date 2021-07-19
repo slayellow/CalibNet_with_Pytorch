@@ -53,7 +53,7 @@ def earth_mover_distance(xyz1, xyz2, transpose=True):
         xyz2 = xyz2.transpose(1, 2)
     cost = EarthMoverDistanceFunction.apply(xyz1, xyz2)
 
-    loss = cost[0] / 2 + cost[1] * 2 + cost[2] / 3
+    loss = torch.sum(cost).to(devices)
     return loss
 
 

@@ -9,7 +9,7 @@ import time
 
 
 ALPHA_LOSS = 1.0
-BETHA_LOSS = 1.0
+BETHA_LOSS = 0.15
 gpu_check = is_gpu_avaliable()
 devices = torch.device("cuda") if gpu_check else torch.device("cpu")
 
@@ -77,7 +77,7 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
         depth_map_expected = depth_map_expected.to(devices)
         sparse_cloud_expected = sparse_cloud_expected.to(devices)
 
-        cloud_loss = earth_mover_distance(sparse_cloud_predicted, sparse_cloud_expected, transpose=False)
+        cloud_loss = earth_mover_distance(sparse_cloud_expected, sparse_cloud_expected, transpose=False)
 
         photometric_loss = loss_fucntion((depth_map_predicted[:, 10:-10, 10:-10] - 40.0) / 40.0,
                              (depth_map_expected[:, 10:-10, 10:-10] - 40.0) / 40.0)
@@ -210,5 +210,8 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
     ax4.axis('off')
     plt.savefig(os.path.join(cf.paths['validation_img_result_path'], 'Validation_'+str(epoch+1)+'.png'))
     plt.close()
+
+    if epoch % 10 == 0:
+        BETHA_LOSS = BETHA_LOSS + 0.1
 
 print("Train Finished!!")

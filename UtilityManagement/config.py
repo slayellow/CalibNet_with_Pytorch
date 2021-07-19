@@ -58,5 +58,5 @@ network_info = dict(
     learning_rate = 5e-4,                   # learining rate
     beta1 = 0.9,                            # momentum term for Adam Optimizer
     freq_print = 10,
-    num_worker = 8
+    num_worker = 4
 )
