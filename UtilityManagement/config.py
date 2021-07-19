@@ -3,19 +3,19 @@ import numpy as np
 
 # 데이터셋 관련 경로
 
-# paths = dict(
-# #     dataset_path = "/home/HONG/CalibNet_with_Pytorch/DataManagement/parsed_set.txt",
-# #     pretrained_path = "/home/HONG/PretrainedParameter",
-# #     training_img_result_path = "/home/HONG/CalibNet_Result",
-# #     validation_img_result_path = "/home/HONG/CalibNet_Result"
-# # )
-
 paths = dict(
-    dataset_path = "/Users/jinseokhong/data/CalibNet_DataSet/parsed_set_example.txt",
-    pretrained_path = "/Users/jinseokhong/data/CalibNet_DataSet",
-    training_img_result_path = "/Users/jinseokhong/data/CalibNet_Result",
-    validation_img_result_path = "/Users/jinseokhong/data/CalibNet_Result"
+    dataset_path = "/home/HONG/CalibNet_with_Pytorch/DataManagement/parsed_set.txt",
+    pretrained_path = "/home/HONG/PretrainedParameter",
+    training_img_result_path = "/home/HONG/CalibNet_Result",
+    validation_img_result_path = "/home/HONG/CalibNet_Result"
 )
+#
+# paths = dict(
+#     dataset_path = "/Users/jinseokhong/data/CalibNet_DataSet/parsed_set_example.txt",
+#     pretrained_path = "/Users/jinseokhong/data/CalibNet_DataSet",
+#     training_img_result_path = "/Users/jinseokhong/data/CalibNet_Result",
+#     validation_img_result_path = "/Users/jinseokhong/data/CalibNet_Result"
+# )
 
 
 # 카메라 관련 파라메타
@@ -53,10 +53,10 @@ camera_intrinsic_parameter = np.array([[fx_scaled, 0.0, cx_scaled],
 # 네트워크 구성 관련 파라메타
 
 network_info = dict(
-    batch_size = 8,                        # batch_size take during training
-    epochs = 1,                            # total number of epoch
+    batch_size = 20,                        # batch_size take during training
+    epochs = 100,                            # total number of epoch
     learning_rate = 5e-4,                   # learining rate
     beta1 = 0.9,                            # momentum term for Adam Optimizer
-    freq_print = 1,
-    num_worker = 0
+    freq_print = 10,
+    num_worker = 8
 )

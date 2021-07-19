@@ -1,3 +1,5 @@
+import torch.autograd
+
 from DataManagement.data_management import *
 from ModelManagement.PytorchModel.CalibNet import *
 from ModelManagement.model_management import *
@@ -6,6 +8,8 @@ import matplotlib.pyplot as plt
 import time
 
 
+ALPHA_LOSS = 1.0
+BETHA_LOSS = 1.0
 gpu_check = is_gpu_avaliable()
 devices = torch.device("cuda") if gpu_check else torch.device("cpu")
 
@@ -60,11 +64,12 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
             expected_transform = expected_transform.to(devices)
 
         output_vector, first_max_pool = model(source_image, source_depth_map)
+        output_vector = torch.autograd.Variable(output_vector, requires_grad=True).to(devices)
         T = get_RTMatrix_using_exponential_logarithm_mapping(output_vector).to(devices)
         depth_map_predicted, sparse_cloud_predicted = get_transformed_matrix(first_max_pool * 40.0 + 40.0, T, K_final,
                                                      small_transform)
         depth_map_predicted = torch.autograd.Variable(depth_map_predicted, requires_grad=True).to(devices)
-        sparse_cloud_predicted = sparse_cloud_predicted.to(devices)
+        sparse_cloud_predicted = torch.autograd.Variable(sparse_cloud_predicted, requires_grad=True).to(devices)
 
         depth_map_expected, sparse_cloud_expected = get_transformed_matrix(first_max_pool * 40.0 + 40.0, expected_transform, K_final,
                                                     small_transform)
@@ -72,8 +77,12 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
         depth_map_expected = depth_map_expected.to(devices)
         sparse_cloud_expected = sparse_cloud_expected.to(devices)
 
-        loss = loss_fucntion((depth_map_predicted[:, 10:-10, 10:-10] - 40.0) / 40.0,
+        cloud_loss = earth_mover_distance(sparse_cloud_predicted, sparse_cloud_expected, transpose=False)
+
+        photometric_loss = loss_fucntion((depth_map_predicted[:, 10:-10, 10:-10] - 40.0) / 40.0,
                              (depth_map_expected[:, 10:-10, 10:-10] - 40.0) / 40.0)
+
+        loss = ALPHA_LOSS*photometric_loss + BETHA_LOSS*cloud_loss
 
         losses.update(loss.item(), source_depth_map.size(0))
 
@@ -145,13 +154,12 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
             expected_transform = expected_transform.to(devices)
 
         output_vector, first_max_pool = model(source_image, source_depth_map)
-
+        output_vector = torch.autograd.Variable(output_vector, requires_grad=True).to(devices)
         T = get_RTMatrix_using_exponential_logarithm_mapping(output_vector).to(devices)
-
         depth_map_predicted, sparse_cloud_predicted = get_transformed_matrix(first_max_pool * 40.0 + 40.0, T, K_final,
                                                                              small_transform)
         depth_map_predicted = torch.autograd.Variable(depth_map_predicted, requires_grad=True).to(devices)
-        sparse_cloud_predicted = sparse_cloud_predicted.to(devices)
+        sparse_cloud_predicted = torch.autograd.Variable(sparse_cloud_predicted, requires_grad=True).to(devices)
 
         depth_map_expected, sparse_cloud_expected = get_transformed_matrix(first_max_pool * 40.0 + 40.0,
                                                                            expected_transform, K_final,
@@ -160,8 +168,12 @@ for epoch in range(start_epoch, cf.network_info['epochs']):
         depth_map_expected = depth_map_expected.to(devices)
         sparse_cloud_expected = sparse_cloud_expected.to(devices)
 
-        loss = loss_fucntion((depth_map_predicted[:, 10:-10, 10:-10] - 40.0) / 40.0,
-                             (depth_map_expected[:, 10:-10, 10:-10] - 40.0) / 40.0)
+        cloud_loss = earth_mover_distance(sparse_cloud_predicted, sparse_cloud_expected, transpose=False)
+
+        photometric_loss = loss_fucntion((depth_map_predicted[:, 10:-10, 10:-10] - 40.0) / 40.0,
+                                         (depth_map_expected[:, 10:-10, 10:-10] - 40.0) / 40.0)
+
+        loss = ALPHA_LOSS * photometric_loss + BETHA_LOSS * cloud_loss
         losses.update(loss.item(), source_depth_map.size(0))
 
         batch_time.update(time.time() - end)
